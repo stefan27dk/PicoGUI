@@ -24,9 +24,12 @@ const bool enableValidationLayers = true;
 
 
 
+
+
+// Create Validation Layer / Debug Mode --------------------------------------------------------------------------------
 VkResult CreateDebugUtilsMessengerEXT(VkInstance instance, const VkDebugUtilsMessengerCreateInfoEXT *pCreateInfo, const VkAllocationCallbacks * pAllocator, VkDebugUtilsMessengerEXT *pDebugMessenger)
 {
-	auto func = (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(instance, "vkCreateDebugutilsMessengerEXT");
+	auto func = (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT");
 
 	if (func != nullptr)
 	{
@@ -40,6 +43,8 @@ VkResult CreateDebugUtilsMessengerEXT(VkInstance instance, const VkDebugUtilsMes
 
 
 
+
+// Dispose Validation Layer /  debug mode --------------------------------------------------------------------------------------------
 void DestroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT debugMessenger, const VkAllocationCallbacks* pAllocator)
 {
 	auto func = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(instance, "vkDestroyUtilsMessengerEXT");
@@ -51,9 +56,18 @@ void DestroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT
 }
 
 
+
+
+
+
+
+
+
+// Class --------------------------------------------------------------------------------------------
 class TriangleApp
 {
 public:
+
 	void Run()
 	{
 		InitWindow();
@@ -67,7 +81,10 @@ public:
 private:
 	GLFWwindow* _window;
 	VkInstance _instance;
+	VkDebugUtilsMessengerEXT _debugMessenger;
 
+
+	// InitWindow ----------------------------------------------------------------------------------------
 	void InitWindow()
 	{
 		glfwInit();
@@ -76,13 +93,16 @@ private:
 		_window = glfwCreateWindow(WIDTH, HEIGHT, "Vulkan", nullptr, nullptr);
 	}
 
+
+	// Init Vulkan ----------------------------------------------------------------------------------------
 	void InitVulkan()
 	{
 		CreateInstance();
+		SetupDebugMessenger();
 	}
 
 
-
+	// Main Loop ----------------------------------------------------------------------------------------
 	void MainLoop()
 	{
 		while (!glfwWindowShouldClose(_window))
@@ -91,17 +111,34 @@ private:
 		}
 	}
 
+
+
+
+    // Cleanup --------------------------------------------------------------------------------------
 	void Cleanup()
 	{
+		if (enableValidationLayers)
+		{
+			DestroyDebugUtilsMessengerEXT( _instance, _debugMessenger, nullptr);
+		}
+
 		vkDestroyInstance(_instance, nullptr);
 		glfwDestroyWindow(_window);
 		glfwTerminate();
 	}
 
 
-
+	// Create Instance ------------------------------------------------------------------------------
 	void CreateInstance()
 	{
+
+		if (enableValidationLayers && !CheckValidationLayerSupport())
+		{
+			throw std::runtime_error("Validation layers requested, but not avaible");
+		}
+
+
+
 		// Info
 		VkApplicationInfo appInfo{};
 		appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
@@ -116,15 +153,27 @@ private:
 		createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
 		createInfo.pApplicationInfo = &appInfo;
 
-		// Vars to show amount of extensions / instances
-		unsigned int glfwExtensionCount = 0;
-		const char** glfwExtensions;
-		glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
 
-		// Setting count - extensions / instances
-		createInfo.enabledExtensionCount = glfwExtensionCount;
-		createInfo.ppEnabledExtensionNames = glfwExtensions;
-		createInfo.enabledLayerCount = 0;
+		auto extensions = GetRequiredExtensions();
+		createInfo.enabledExtensionCount = static_cast<unsigned int>(extensions.size());
+		createInfo.ppEnabledExtensionNames = extensions.data();
+
+		VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo{};
+
+		if (enableValidationLayers)
+		{
+			createInfo.enabledLayerCount = static_cast<unsigned int>(validationLayers.size());
+			createInfo.ppEnabledLayerNames = validationLayers.data();
+			PopulateDebugMessengerCreateInfo(debugCreateInfo);
+			createInfo.pNext = (VkDebugUtilsMessengerCreateInfoEXT*)&debugCreateInfo;
+		}
+		else
+		{
+			createInfo.enabledLayerCount = 0;
+			createInfo.pNext = nullptr;
+		}
+
+		
 
 		// Create Instance
 		if (vkCreateInstance(&createInfo, nullptr, &_instance) != VK_SUCCESS)
@@ -132,24 +181,115 @@ private:
 			throw std::runtime_error("Failed to create Vulkan Instance!"); // Throw error
 		}
 
-		std::vector<VkExtensionProperties> extensions(glfwExtensionCount);
-		vkEnumerateInstanceExtensionProperties(nullptr, &glfwExtensionCount, extensions.data());
+		//std::vector<VkExtensionProperties> extensions(glfwExtensionCount);
+		//vkEnumerateInstanceExtensionProperties(nullptr, &glfwExtensionCount, extensions.data());
 
-		std::cout << "Aviable Extensions: " << std::endl;  
+		//std::cout << "Aviable Extensions: " << std::endl;  
 
-		// Print the number of extensionsin the console
-		for (const auto& extension : extensions)
+		//// Print the number of extensionsin the console
+		//for (const auto& extension : extensions)
+		//{
+		//	std::cout << '\t' << extension.extensionName << std::endl;
+		//}	    
+	}
+
+	void PopulateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT &createInfo)
+	{
+		createInfo = {};
+		createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+		createInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+		createInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+		createInfo.pfnUserCallback = DebugCallback;
+	}
+
+
+	void SetupDebugMessenger()
+	{
+		if (!enableValidationLayers)
 		{
-			std::cout << '\t' << extension.extensionName << std::endl;
+			return;
 		}
+
+		VkDebugUtilsMessengerCreateInfoEXT createInfo;
+		PopulateDebugMessengerCreateInfo(createInfo);
+
+		if (CreateDebugUtilsMessengerEXT(_instance, &createInfo, nullptr, &_debugMessenger) != VK_SUCCESS)
+		{
+			throw std::runtime_error("Failed to setup debug messenger");
+		}
+	}
+
+
+	std::vector<const char*>GetRequiredExtensions()
+	{
+		// Vars to show amount of extensions / instances
+		 unsigned int glfwExtensionCount = 0;
+		 const char** glfwExtensions;
+		 glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
+
+		 std::vector<const char*> extensions(glfwExtensions, glfwExtensions + glfwExtensionCount);
+
+		 if (enableValidationLayers)
+		 {
+			 extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+		 }
+
+
+		 return extensions;
+		 //// Setting count - extensions / instances
+		 //createInfo.enabledExtensionCount = glfwExtensionCount;
+		 //createInfo.ppEnabledExtensionNames = glfwExtensions;
+		 //createInfo.enabledLayerCount = 0;
+	}
+
+
+	bool CheckValidationLayerSupport()
+	{
+		unsigned int layerCount;
+		vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
+		
+		std::vector<VkLayerProperties> aviableLayers(layerCount);
+		vkEnumerateInstanceLayerProperties(&layerCount, aviableLayers.data());
+
+		for (const char *layerName : validationLayers)
+		{
+			bool layerFound = false;
+
+			for (const auto& layerProperties : aviableLayers)
+			{
+				if (strcmp(layerName, layerProperties.layerName) == 0)
+				{
+					layerFound = true;
+					break;
+				}
+			}
+
+			if (!layerFound)
+			{
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+
+
+
+
+	static VKAPI_ATTR VkBool32 VKAPI_CALL DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData)
+	{
+		std::cerr << "Validation layer: " << pCallbackData->pMessage << std::endl;
+
+		return VK_FALSE;
 	}
 };
 
 
  
-
+// Main ---------------------------------------------------------------------------------------------
 int main()
-{
+{	 
 	TriangleApp app;
 	try
 	{
@@ -162,6 +302,7 @@ int main()
 		return EXIT_FAILURE;
 	}
 
+
 	return EXIT_SUCCESS;
 }
 
@@ -169,6 +310,11 @@ int main()
 
 
 
+//https://www.youtube.com/watch?v=WIzipnlQs1M&list=PLRtjMdoYXLf4A8013lsFWHOgM9qdh0kjH&index=7
+
+//https://www.youtube.com/watch?v=WIzipnlQs1M&list=PLRtjMdoYXLf4A8013lsFWHOgM9qdh0kjH&index=8
 
 
- 
+//
+//Borderless resizable window 
+//https ://github.com/glfw/glfw/issues/990
