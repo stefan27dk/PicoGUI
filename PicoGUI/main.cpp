@@ -5,6 +5,7 @@
 #include <stdexcept>
 #include <cstdlib>
 #include <vector>
+#include <optional>
 
 
 const unsigned int WIDTH = 800;
@@ -59,7 +60,18 @@ void DestroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT
 
 
 
+struct QueueFamilyIndices
+{
 
+	std::optional<unsigned int> graphicsFamily;
+	 
+
+	bool IsCompleted()
+	{
+		return graphicsFamily.has_value();
+ 
+	}
+ };
 
 
 
@@ -82,6 +94,7 @@ private:
 	GLFWwindow* _window;
 	VkInstance _instance;
 	VkDebugUtilsMessengerEXT _debugMessenger;
+	VkPhysicalDevice _physicalDevice = VK_NULL_HANDLE;
 
 
 	// InitWindow ----------------------------------------------------------------------------------------
@@ -94,12 +107,18 @@ private:
 	}
 
 
+
+
+
 	// Init Vulkan ----------------------------------------------------------------------------------------
 	void InitVulkan()
 	{
 		CreateInstance();
 		SetupDebugMessenger();
+		PickPhysicalDevice();
 	}
+
+
 
 
 	// Main Loop ----------------------------------------------------------------------------------------
@@ -193,6 +212,10 @@ private:
 		//}	    
 	}
 
+
+
+
+	// PopulateDebugMessengerCreateInfo ----------------------------------------------------------------------------------------
 	void PopulateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT &createInfo)
 	{
 		createInfo = {};
@@ -203,6 +226,9 @@ private:
 	}
 
 
+
+
+	// SetupDebugMessenger ----------------------------------------------------------------------------------------
 	void SetupDebugMessenger()
 	{
 		if (!enableValidationLayers)
@@ -220,6 +246,84 @@ private:
 	}
 
 
+
+
+	// PickPhysicalDevice ----------------------------------------------------------------------------------------
+	void PickPhysicalDevice()
+	{
+		unsigned int deviceCount = 0;
+		vkEnumeratePhysicalDevices(_instance, &deviceCount, nullptr);
+		if (deviceCount == 0)
+		{
+			throw std::runtime_error("Failed to find any GPUs with Vulkan!");
+		}
+
+		std::vector<VkPhysicalDevice> devices(deviceCount);
+		vkEnumeratePhysicalDevices(_instance, &deviceCount, devices.data());
+
+		for (const auto& device : devices)
+		{
+			if (IsDeviceSuitable(device))
+			{
+				_physicalDevice = device;
+
+				break;
+			}
+		}
+
+		if (_physicalDevice == VK_NULL_HANDLE)
+		{
+			throw std::runtime_error("Failed to find a suitable GPU!");
+		}
+	}
+
+
+
+
+
+	// IsDeviceSutable ----------------------------------------------------------------------------------------
+	bool IsDeviceSuitable(VkPhysicalDevice device)
+	{
+		QueueFamilyIndices indices = FindQueueFamilies(device);
+
+		return indices.IsCompleted();
+	}
+
+
+
+
+	// FindQueueFamilies ----------------------------------------------------------------------------------------
+	QueueFamilyIndices FindQueueFamilies(VkPhysicalDevice device)
+	{
+		QueueFamilyIndices indices;
+		unsigned int queueFamilyCount = 0;
+		vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, nullptr);
+		std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
+		vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilies.data());
+
+
+		int i = 0;
+		for (const auto& queueFamily : queueFamilies)
+		{
+			if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT)
+			{
+				indices.graphicsFamily = i;
+			}
+
+			if (indices.IsCompleted())
+			{
+				break;
+			}
+		}
+
+		return indices;
+	}
+
+
+
+
+
+	// GetRequiredExtensions ----------------------------------------------------------------------------------------
 	std::vector<const char*>GetRequiredExtensions()
 	{
 		// Vars to show amount of extensions / instances
@@ -243,6 +347,11 @@ private:
 	}
 
 
+
+
+
+
+	// CheckValidationLayerSupport ----------------------------------------------------------------------------------------
 	bool CheckValidationLayerSupport()
 	{
 		unsigned int layerCount;
@@ -277,6 +386,7 @@ private:
 
 
 
+	// DebugCallback  ----------------------------------------------------------------------------------------
 	static VKAPI_ATTR VkBool32 VKAPI_CALL DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData)
 	{
 		std::cerr << "Validation layer: " << pCallbackData->pMessage << std::endl;
@@ -309,10 +419,9 @@ int main()
 
 
 
+//https://www.youtube.com/watch?v=9NnekWE_67E&list=PLRtjMdoYXLf4A8013lsFWHOgM9qdh0kjH&index=8
 
-//https://www.youtube.com/watch?v=WIzipnlQs1M&list=PLRtjMdoYXLf4A8013lsFWHOgM9qdh0kjH&index=7
-
-//https://www.youtube.com/watch?v=WIzipnlQs1M&list=PLRtjMdoYXLf4A8013lsFWHOgM9qdh0kjH&index=8
+//https://www.youtube.com/watch?v=9NnekWE_67E&list=PLRtjMdoYXLf4A8013lsFWHOgM9qdh0kjH&index=8
 
 
 //
