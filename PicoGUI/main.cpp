@@ -96,6 +96,12 @@ private:
 	VkDebugUtilsMessengerEXT _debugMessenger;
 	VkPhysicalDevice _physicalDevice = VK_NULL_HANDLE;
 
+	VkDevice _device;
+	VkQueue _graphicsQueue;
+
+
+
+
 
 	// InitWindow ----------------------------------------------------------------------------------------
 	void InitWindow()
@@ -115,7 +121,8 @@ private:
 	{
 		CreateInstance();
 		SetupDebugMessenger();
-		PickPhysicalDevice();
+		PickPhysicalDevice(); 
+		CreateLogicalDevice();
 	}
 
 
@@ -136,6 +143,8 @@ private:
     // Cleanup --------------------------------------------------------------------------------------
 	void Cleanup()
 	{
+		vkDestroyDevice(_device, nullptr);
+
 		if (enableValidationLayers)
 		{
 			DestroyDebugUtilsMessengerEXT( _instance, _debugMessenger, nullptr);
@@ -209,7 +218,8 @@ private:
 		//for (const auto& extension : extensions)
 		//{
 		//	std::cout << '\t' << extension.extensionName << std::endl;
-		//}	    
+		//}	   
+
 	}
 
 
@@ -277,6 +287,54 @@ private:
 		}
 	}
 
+
+
+
+	// CreateLogicalDevice ----------------------------------------------------------------------------------------
+	void CreateLogicalDevice()
+	{
+		QueueFamilyIndices indices = FindQueueFamilies(_physicalDevice);
+
+		VkDeviceQueueCreateInfo queueCreateInfo{};
+		queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+		queueCreateInfo.queueFamilyIndex = indices.graphicsFamily.value();
+		queueCreateInfo.queueCount = 1;
+
+		float queuePriority = 1.0f;
+		queueCreateInfo.pQueuePriorities = &queuePriority;
+
+		VkPhysicalDeviceFeatures deviceFeatures{};
+
+
+		VkDeviceCreateInfo createInfo{};
+		createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+
+		createInfo.pQueueCreateInfos = &queueCreateInfo;
+		createInfo.queueCreateInfoCount = 1;
+
+
+		createInfo.pEnabledFeatures = &deviceFeatures;
+
+		createInfo.enabledExtensionCount = 0;
+
+		if (enableValidationLayers)
+		{
+			createInfo.enabledLayerCount = static_cast<unsigned int>(validationLayers.size());
+			createInfo.ppEnabledLayerNames = validationLayers.data();
+		}
+		else
+		{
+			createInfo.enabledLayerCount = 0;
+		}
+
+		if (vkCreateDevice(_physicalDevice, &createInfo, nullptr, &_device) != VK_SUCCESS)
+		{
+			throw std::runtime_error("Failed to create logical device!");
+		}
+
+
+		vkGetDeviceQueue(_device, indices.graphicsFamily.value(), 0, &_graphicsQueue);
+	}
 
 
 
@@ -419,11 +477,8 @@ int main()
 
 
 
-//https://www.youtube.com/watch?v=9NnekWE_67E&list=PLRtjMdoYXLf4A8013lsFWHOgM9qdh0kjH&index=8
-
-//https://www.youtube.com/watch?v=9NnekWE_67E&list=PLRtjMdoYXLf4A8013lsFWHOgM9qdh0kjH&index=8
 
 
-//
+ 
 //Borderless resizable window 
 //https ://github.com/glfw/glfw/issues/990
