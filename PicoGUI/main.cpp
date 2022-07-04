@@ -6,6 +6,7 @@
 #include <cstdlib>
 #include <vector>
 #include <optional>
+#include <set>
 
 
 const unsigned int WIDTH = 800;
@@ -64,11 +65,12 @@ struct QueueFamilyIndices
 {
 
 	std::optional<unsigned int> graphicsFamily;
+	std::optional<unsigned int> presentFamily;
 	 
 
 	bool IsCompleted()
 	{
-		return graphicsFamily.has_value();
+		return graphicsFamily.has_value() && presentFamily.has_value();
  
 	}
  };
@@ -97,9 +99,11 @@ private:
 	VkPhysicalDevice _physicalDevice = VK_NULL_HANDLE;
 
 	VkDevice _device;
+
 	VkQueue _graphicsQueue;
 
-
+	VkSurfaceKHR _surface;
+	VkQueue _presentQueue;
 
 
 
@@ -121,6 +125,7 @@ private:
 	{
 		CreateInstance();
 		SetupDebugMessenger();
+		CreateSurface();
 		PickPhysicalDevice(); 
 		CreateLogicalDevice();
 	}
@@ -150,6 +155,7 @@ private:
 			DestroyDebugUtilsMessengerEXT( _instance, _debugMessenger, nullptr);
 		}
 
+		vkDestroySurfaceKHR(_instance, _surface, nullptr);
 		vkDestroyInstance(_instance, nullptr);
 		glfwDestroyWindow(_window);
 		glfwTerminate();
@@ -258,6 +264,22 @@ private:
 
 
 
+
+
+	// CreateSurface ----------------------------------------------------------------------------------------
+	void CreateSurface()
+	{
+		if(glfwCreateWindowSurface(_instance, _window, nullptr, &_surface) != VK_SUCCESS)
+		{
+			throw std::runtime_error("Failed to create a window surface!");
+	    }
+	}
+
+
+
+
+
+
 	// PickPhysicalDevice ----------------------------------------------------------------------------------------
 	void PickPhysicalDevice()
 	{
@@ -295,13 +317,27 @@ private:
 	{
 		QueueFamilyIndices indices = FindQueueFamilies(_physicalDevice);
 
-		VkDeviceQueueCreateInfo queueCreateInfo{};
+
+		std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
+		std::set<unsigned int> uniqueQueuFamilies = { indices.graphicsFamily.value(), indices.presentFamily.value() };
+		 
+	/*	VkDeviceQueueCreateInfo queueCreateInfo{};
 		queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
 		queueCreateInfo.queueFamilyIndex = indices.graphicsFamily.value();
-		queueCreateInfo.queueCount = 1;
+		queueCreateInfo.queueCount = 1;*/
 
 		float queuePriority = 1.0f;
-		queueCreateInfo.pQueuePriorities = &queuePriority;
+		//queueCreateInfo.pQueuePriorities = &queuePriority;
+
+		for (unsigned int queueFamily : uniqueQueuFamilies)
+		{
+			VkDeviceQueueCreateInfo queueCreateInfo{};
+			queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+			queueCreateInfo.queueFamilyIndex = queueFamily;
+			queueCreateInfo.queueCount = 1;
+			queueCreateInfo.pQueuePriorities = &queuePriority;
+			queueCreateInfos.push_back(queueCreateInfo);
+		}
 
 		VkPhysicalDeviceFeatures deviceFeatures{};
 
@@ -309,8 +345,11 @@ private:
 		VkDeviceCreateInfo createInfo{};
 		createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
 
-		createInfo.pQueueCreateInfos = &queueCreateInfo;
-		createInfo.queueCreateInfoCount = 1;
+	/*	createInfo.pQueueCreateInfos = &queueCreateInfo;
+		createInfo.queueCreateInfoCount = 1;*/
+
+		createInfo.queueCreateInfoCount = static_cast<unsigned int>(queueCreateInfos.size());
+		createInfo.pQueueCreateInfos = queueCreateInfos.data();
 
 
 		createInfo.pEnabledFeatures = &deviceFeatures;
@@ -334,6 +373,8 @@ private:
 
 
 		vkGetDeviceQueue(_device, indices.graphicsFamily.value(), 0, &_graphicsQueue);
+		vkGetDeviceQueue(_device, indices.presentFamily.value(), 0, &_presentQueue);
+
 	}
 
 
@@ -361,6 +402,7 @@ private:
 
 
 		int i = 0;
+
 		for (const auto& queueFamily : queueFamilies)
 		{
 			if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT)
@@ -368,10 +410,24 @@ private:
 				indices.graphicsFamily = i;
 			}
 
+			VkBool32 presentSupport = false;
+			vkGetPhysicalDeviceSurfaceSupportKHR(device, i, _surface, &presentSupport);
+		
+
+
+			if (presentSupport)
+			{
+				indices.presentFamily = i;
+			}
+
+
+
 			if (indices.IsCompleted())
 			{
 				break;
 			}
+
+			i++;
 		}
 
 		return indices;
@@ -476,7 +532,7 @@ int main()
 
 
 
-
+//https://www.youtube.com/watch?v=YlVH9Fxh4ys&list=PLRtjMdoYXLf4A8013lsFWHOgM9qdh0kjH&index=10
 
 
  
